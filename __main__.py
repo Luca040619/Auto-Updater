@@ -795,7 +795,7 @@ class Updater(NetUsagePerProcess):
             
     def print_EULA(self):
         os.system('cls')
-        self.prompt(' :author: Luca Porzio\n :license: GPL\n :version: 1.0\n :copyright: (C) 2022-present Luca040619\n ------------------------')
+        self.prompt(' :author: Luca Porzio\n :license: GPL\n :version: 1.0\n :copyright: (C) 2022-present Luca Porzio\n ------------------------')
         self.prompt(' END USER LICENSE AGREMENT\n'
                     ' Auto updater è un programma open-source distribuito con licenza GPL (più dettagli nel\n'
                     ' file LICENSE) che permette di aggiornare e monitorare i propri programmi da un comodo\n'
