@@ -1,15 +1,24 @@
 '''
-Auto updater is a program which help you to update many apps installed on your pc,
-monitor the network usage for every process and shutdown the system when has finished
+<Auto updater is a program which help you to update many apps installed on your pc,
+monitor the network usage for every process and shutdown the system when has finished>
 
-:copyright: (c) 2022-present Luca040619
-:license: GPL
+Copyright (C) 2022-present Luca Porzio
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
 
 __title__ = 'Auto Updater'
 __author__ = 'Luca040619'
 __license__ = 'GPL'
-__copyright__ = 'Copyright (C) 2022-present Luca040619'
+__copyright__ = 'Copyright (C) 2022-present Luca Porzio'
 __version__ = '1.0'
 
 import os
@@ -784,7 +793,7 @@ class Updater(NetUsagePerProcess):
             
     def print_EULA(self):
         os.system('cls')
-        self.prompt(' :author: Luca Porzio\n :license: GPL\n :version: 1.0\n :copyright: (C) 2022-present Luca040619\n ------------------------')
+        self.prompt(' :author: Luca Porzio\n :license: GPL\n :version: 1.0\n :copyright: (C) 2022-present Luca Porzio\n ------------------------')
         self.prompt(' END USER LICENSE AGREMENT\n'
                     ' Auto updater è un programma open-source distribuito con licenza GPL (più dettagli nel\n'
                     ' file LICENSE) che permette di aggiornare e monitorare i propri programmi da un comodo\n'
