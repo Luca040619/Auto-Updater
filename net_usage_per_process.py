@@ -1,7 +1,8 @@
 '''
-<Auto updater is a program which help you to update many apps installed on your pc,
-monitor the network usage for every process and shutdown the system when has finished>
-Copyright (C) 2022-present Luca Porzio
+Auto updater is a program which help you to update many apps installed on your pc,
+monitor the network usage for every process and shutdown the system when has finished
+
+Copyright (C) <2022-present>  <Luca Porzio>
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -16,6 +17,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
+
 from scapy.all import *
 import psutil
 
