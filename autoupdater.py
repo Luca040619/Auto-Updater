@@ -66,7 +66,9 @@ class Updater(NetUsagePerProcess):
             'upload-monitor' : False,
             'net-interface' : self.default_net_adapter(),
             'down-speed' : 80,
-            'up-speed' : 50
+            'up-speed' : 50,
+            'disk-read-threshold': 10 * 1024 * 1024,  # 10 MB/s
+            'disk-write-threshold': 5 * 1024 * 1024  # 5 MB/s
         }
 
         self.options = {1 : self.start_updating,
@@ -320,7 +322,10 @@ class Updater(NetUsagePerProcess):
             self.sleep(1.5)
                 
         except KeyboardInterrupt:
-            if int(choice) == 2: logging.info('Network monitoring interrupted by user')
+            if int(choice) == 1:
+                self.is_monitoring = False
+            if int(choice) == 2:
+                logging.info('Network monitoring interrupted by user')
             else: pass
         
         os.system('cls')
@@ -330,20 +335,18 @@ class Updater(NetUsagePerProcess):
         if self.config_data['auto-shutdown']: auto_off = 'SI'    
         else: auto_off = 'NO'
 
-        self.prompt("\n ------- AGGIORNAMENTO ------- " + colored('[Min: {}KB/s]'.format(self.config_data['down-speed']), 'cyan') + '|' + colored('[Auto off: {}]'.format(auto_off), 'cyan') + '\n')
+        self.prompt("\n ------- AGGIORNAMENTO ------- " + colored(f'[Min: {self.config_data['down-speed']}KB/s]', 'cyan') + '|' + colored(f'[Auto off: {auto_off}]', 'cyan') + '\n')
 
         start_time = time.time()
         logging.info('Started updating')
         
         i = 1
         for app in self.programs:
-            if self.is_monitoring:
-                self.delete_last_lines(1)
-                
+            if self.is_monitoring:      
                 app = app.strip()
                 name = os.path.basename(app)
                 self.prompt('\n Avvio di {} in corso...      \n\n'.format(name))#, end = '\r')
-                process = subprocess.Popen(r"{}".format(app))
+                process = subprocess.Popen(rf"{app}")
 
                 if name.__eq__('UbisoftConnect.exe'): name = 'upc.exe'
                 elif name.__eq__('Battle.net Launcher.exe'): name = 'Agent.exe'
@@ -351,24 +354,29 @@ class Updater(NetUsagePerProcess):
                 self.delete_last_lines(1)
                 
                 sec_inactivity = 0
-                while sec_inactivity < 240 and self.is_monitoring:
+                while sec_inactivity < 60 and self.is_monitoring:
                     bytes_in = self.get_pid2traffic_one_process(name)
                     net_usage = f" Current net-usage: {self.humansize(bytes_in)}/s"
 
-                    sec_inactivity = self.seconds_of_inactivity(sec_inactivity, bytes_in, None)
-                    color, none = self.set_color(bytes_in, None)
+                    disk_activity = self.get_current_disk_activity(name)  # Presupponendo che la funzione restituisca un dizionario con 'read_bytes' e 'write_bytes'
+                    disk_read_speed = f"Disk Read Speed: {self.humansize(disk_activity['read_speed'])}/s"
+                    disk_write_speed = f"Disk Write Speed: {self.humansize(disk_activity['write_speed'])}/s"
+
+                    sec_inactivity = self.seconds_of_inactivity(sec_inactivity, bytes_in, disk_read=disk_activity['read_speed'], disk_write=disk_activity['write_speed'])
+
+                    color_net, _, color_read, color_write = self.set_color(bytes_in, disk_read=disk_activity['read_speed'], disk_write=disk_activity['write_speed'])
                     
-                    self.delete_last_lines(3)
-                    self.prompt("\n {} - {} in download: {}          \n\n{}".format(i, os.path.basename(app), colored(net_usage, color), colored(' (premi CTRL + C per interrompere)', 'cyan')))#, end = '\r')
+                    self.delete_last_lines(4)
+                    self.prompt(f"\n {i} - {os.path.basename(app)} in download: {colored(net_usage, color_net)}         \n {colored(disk_read_speed, color_read)}, {colored(disk_write_speed, color_write)}         \n\n{colored(' (premi CTRL + C per interrompere)', 'cyan')}")#, end = '\r')
 
                     while msvcrt.kbhit(): flush = input()
                     self.sleep(1)
                     self.delete_last_lines(1)
 
                 if self.is_monitoring:
-                    self.delete_last_lines(3)
-                    self.prompt("\n {} - {} {}                                           \
-                                                        ".format(i, os.path.basename(app), colored('download completato', 'green')))
+                    self.delete_last_lines(4)
+                    self.prompt(f"\n {i} - {os.path.basename(app)} {colored('download completato', 'green')}                                           \
+                                                        ")
                 
                 process.kill() #try to kill the process in two different mode
                 os.system(f'taskkill /IM "{name}" /F')
@@ -406,41 +414,41 @@ class Updater(NetUsagePerProcess):
         self.is_monitoring = False
         self.sleep(1)
         
-    def seconds_of_inactivity(self, sec_inactivity, bytes_in, bytes_out):
+    def seconds_of_inactivity(self, sec_inactivity, bytes_in, bytes_out=None, disk_read=None, disk_write=None):
         """Return the value increased or reset of sec_inactivity according to the parameters"""
-        if bytes_out is not None:
-            if bytes_in < self.config_data['down-speed']*1000:
-                sec_inactivity += 0.5
-            else:
-                sec_inactivity = 0
-        
-            if bytes_out < self.config_data['up-speed']*1000:
-                sec_inactivity += 0.5
-            else:
-                sec_inactivity = 0
-        
+        condition_met = False
+
+        if bytes_in >= self.config_data['down-speed']*1000 or (bytes_out is not None and bytes_out >= self.config_data['up-speed']*1000):
+            condition_met = True
+
+        if disk_read is not None and disk_read >= self.config_data['disk-read-threshold']:
+            condition_met = True
+
+        if disk_write is not None and disk_write >= self.config_data['disk-write-threshold']:
+            condition_met = True
+
+        if condition_met:
+            sec_inactivity = 0
         else:
-            if bytes_in < self.config_data['down-speed']*1000:
-                sec_inactivity += 1
-            else:
-                sec_inactivity = 0
-        
+            sec_inactivity += 1
+
         return sec_inactivity
     
-    def set_color(self, bytes_in, bytes_out):
-        if bytes_in < self.config_data['down-speed']*1000:
-            color_in = 'red'
-        else:
-            color_in = 'green'
+    def set_color(self, bytes_in, bytes_out=None, disk_read=None, disk_write=None):
+        # Gestione colore per il traffico in entrata
+        color_in = 'green' if bytes_in >= self.config_data['down-speed']*1000 else 'red'
         
-        color_out = None
-        if bytes_out is not None:
-            if bytes_out < self.config_data['up-speed']*1000:
-                color_out = 'red'
-            else:
-                color_out = 'green'
+        # Gestione colore per il traffico in uscita
+        color_out = 'green' if bytes_out is not None and bytes_out >= self.config_data['up-speed']*1000 else 'red' if bytes_out is not None else None
         
-        return color_in, color_out
+        # Gestione colore per la lettura del disco
+        color_read = 'green' if disk_read is not None and disk_read >= self.config_data['disk-read-threshold'] else 'red' if disk_read is not None else None
+        
+        # Gestione colore per la scrittura del disco
+        color_write = 'green' if disk_write is not None and disk_write >= self.config_data['disk-write-threshold'] else 'red' if disk_write is not None else None
+        
+        return color_in, color_out, color_read, color_write
+
     
     def delete_last_lines(self, times):
         """Delete the last lines in the console according to the parameter
@@ -505,10 +513,9 @@ class Updater(NetUsagePerProcess):
                 available_networks.append(intface)
 
         self.prompt(' ----- INTERFACCE DI RETE -----')
-        i = 1
-        for net in available_networks:
+
+        for i, net in enumerate(available_networks, start=1):
             print(" " + str(i), net, sep = ' - ')
-            i = i + 1
         
         ok = False
         while not ok:
@@ -603,6 +610,46 @@ class Updater(NetUsagePerProcess):
                 self.prompt("\n Inserisci un valore numerico valido!")
                 self.sleep(1.5)
                 self.delete_last_lines(5)
+
+    def read_speed(self):
+        ok = False
+        while not ok:
+            speed = str(input(" Inserisci in MB/s la velocità minima di lettura del disco che verrà monitorata\n (sotto tale soglia non verrà considerata attività di lettura)\n Input: "))
+
+            try:
+                if float(speed) > 0:
+                    self.config_data["disk-read-threshold"] = float(speed) * 1024 * 1024 # Converte in MB
+                    ok = True
+            
+                else:
+                    self.prompt("\n Inserisci un valore numerico valido!")
+                    self.sleep(1.5)
+                    self.delete_last_lines(5)
+            
+            except:
+                self.prompt("\n Inserisci un valore numerico valido!")
+                self.sleep(1.5)
+                self.delete_last_lines(5)
+
+    def write_speed(self):
+        ok = False
+        while not ok:
+            speed = str(input(" Inserisci in MB/s la velocità minima di scrittura del disco che verrà monitorata\n (sotto tale soglia non verrà considerata attività di scrittura)\n Input: "))
+
+            try:
+                if float(speed) > 0:
+                    self.config_data["disk-write-threshold"] = float(speed) * 1024 * 1024 # Converte in MB
+                    ok = True
+            
+                else:
+                    self.prompt("\n Inserisci un valore numerico valido!")
+                    self.sleep(1.5)
+                    self.delete_last_lines(5)
+            
+            except:
+                self.prompt("\n Inserisci un valore numerico valido!")
+                self.sleep(1.5)
+                self.delete_last_lines(5)
     
     def view_log_file(self):
         os.system('cls')
@@ -648,7 +695,7 @@ class Updater(NetUsagePerProcess):
         self.prompt(' _____________________________________________________________________________\n\n\n\n\n\n')
 
         sec_inactivity = 0
-        while sec_inactivity < 360:
+        while sec_inactivity < 300:
             data = []
             io = psutil.net_io_counters(pernic=True, nowrap=True)
             
@@ -656,9 +703,8 @@ class Updater(NetUsagePerProcess):
             
             if up_monitor:
                 sec_inactivity = self.seconds_of_inactivity(sec_inactivity, bytes_in, bytes_out)
-            
             else:
-                sec_inactivity = self.seconds_of_inactivity(sec_inactivity, bytes_in, None)
+                sec_inactivity = self.seconds_of_inactivity(sec_inactivity, bytes_in)
             
             data.append({
                 "Interface|": net + '|', "Download|": self.humansize(io[net].bytes_recv) + '|',
@@ -767,8 +813,10 @@ class Updater(NetUsagePerProcess):
             self.prompt(' 3 - Monitora upload\t\t |')
             self.prompt(' 4 - Velocità download\t\t |')
             self.prompt(' 5 - Velocità upload\t\t |')
-            self.prompt(' 6 - Visualizza log\t\t |')
-            self.prompt(' 7 - Ripristina e riesegui setup |')
+            self.prompt(' 6 - Velocità lettura disco\t |')
+            self.prompt(' 7 - Velocità scrittura disco\t |')
+            self.prompt(' 8 - Visualizza log\t\t |')
+            self.prompt(' 9 - Ripristina e riesegui setup |')
             self.prompt(' 0 - Indietro\t\t\t |')
 
             try:
@@ -780,14 +828,16 @@ class Updater(NetUsagePerProcess):
                                 3 : lambda:[self.upload_monitor(), self.write_config_options(), print('\n Impostazione salvata!')],
                                 4 : lambda:[self.download_speed(), self.write_config_options(), print('\n Impostazione salvata!')],
                                 5 : lambda:[self.upload_speed(), self.write_config_options(), print('\n Impostazione salvata!')],
-                                6 : self.view_log_file,
-                                7 : self.restore_app,
+                                6 : lambda:[self.read_speed(), self.write_config_options(), print('\n Impostazione salvata!')],
+                                7 : lambda:[self.write_speed(), self.write_config_options(), print('\n Impostazione salvata!')],
+                                8 : self.view_log_file,
+                                9 : self.restore_app,
                                 0 : self.back
                                 }
 
                 edit_options[int(choice)]()
 
-                if not int(choice).__eq__(0) and not int(choice).__eq__(6) and not int(choice).__eq__(7):
+                if not int(choice).__eq__(0) and not int(choice).__eq__(8) and not int(choice).__eq__(9):
                     self.sleep(2)
                 
             except:
@@ -821,5 +871,4 @@ def is_admin():
     except: return False
 
 if __name__ == '__main__':
-    if is_admin():start()
-    else: ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1) # Re-run the program with admin rights
+    start()

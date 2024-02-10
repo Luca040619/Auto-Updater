@@ -179,7 +179,34 @@ class NetUsagePerProcess():
         self.global_df = df
                 
         return down_process
-            
+    
+    def get_pid2disk_activity(self, p_name): # Return the disk usage of the process name entered
+        disk_activity = {"read_bytes": 0, "write_bytes": 0}
+        for proc in psutil.process_iter(attrs=['pid', 'name']):
+            if proc.info['name'] == p_name:
+                io_counters = proc.io_counters()
+                disk_activity['read_bytes'] = io_counters.read_bytes
+                disk_activity['write_bytes'] = io_counters.write_bytes
+                break  # Interrompe il ciclo una volta trovato il processo
+        return disk_activity
+    
+    def get_current_disk_activity(self, p_name):
+        current_activity = self.get_pid2disk_activity(p_name)
+        current_time = time.time()
+
+        if not hasattr(self, 'previous_disk_activity'):
+            self.previous_disk_activity = {}
+
+        if p_name in self.previous_disk_activity:
+            read_speed = (current_activity['read_bytes'] - self.previous_disk_activity[p_name]['read_bytes']) / (current_time - self.previous_disk_activity[p_name]['time'])
+            write_speed = (current_activity['write_bytes'] - self.previous_disk_activity[p_name]['write_bytes']) / (current_time - self.previous_disk_activity[p_name]['time'])
+        else:
+            read_speed = write_speed = 0  # Nessuna attività precedente registrata, velocità impostata a 0
+
+        self.previous_disk_activity[p_name] = {'read_bytes': current_activity['read_bytes'], 'write_bytes': current_activity['write_bytes'], 'time': current_time}
+
+        return {"read_speed": read_speed, "write_speed": write_speed}
+
     def print_stats(self):
         """Simple function that keeps printing the stats"""
         while self.is_monitoring:
