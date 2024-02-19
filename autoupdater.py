@@ -113,7 +113,7 @@ class Updater(NetUsagePerProcess):
             line.replace("\n", "")
             self.programs.append(line)
 
-    def write(self, dir):
+    def write(self, dir: str):
         """Write in the file the directory entered
 
         Parameters
@@ -133,7 +133,7 @@ class Updater(NetUsagePerProcess):
         
         writing.close()
     
-    def file_in_list(self, dir):
+    def file_in_list(self, dir: str):
         """Check if the dir is in the programs list
 
         Parameters
@@ -153,7 +153,7 @@ class Updater(NetUsagePerProcess):
         
         return is_present
     
-    def verify_dir(self, dir):
+    def verify_dir(self, dir: str):
         """Check if the directory exists
 
         Parameters
@@ -205,7 +205,7 @@ class Updater(NetUsagePerProcess):
                     indent=4,  
                     separators=(',',': '))
     
-    def sleep(self, t):
+    def sleep(self, t: int):
         """It's time.sleep() but ignore inputs while sleeps"""
         time.sleep(t)
         while msvcrt.kbhit(): flush = input() #ignore input during time.sleep
@@ -450,7 +450,7 @@ class Updater(NetUsagePerProcess):
         return color_in, color_out, color_read, color_write
 
     
-    def delete_last_lines(self, times):
+    def delete_last_lines(self, times: int):
         """Delete the last lines in the console according to the parameter
         
         Parameters
@@ -477,7 +477,7 @@ class Updater(NetUsagePerProcess):
         else: return net_in_2 - net_in_1, net_out_2 - net_out_1
         #return f" Current net-usage: {net_in_human}/s"#, OUT: {net_out}/s")
     
-    def humansize(self, nbytes):
+    def humansize(self, nbytes: int):
         """Returns in human sizes the entered bytes
 
         Parameters
@@ -507,7 +507,7 @@ class Updater(NetUsagePerProcess):
 
         available_networks = []
         for intface, addr_list in addresses.items():
-            if any(getattr(addr, 'address').startswith("169.254") for addr in addr_list):
+            if any(str(getattr(addr, 'address')).startswith("169.254") for addr in addr_list):
                 continue
             elif intface in stats and getattr(stats[intface], "isup"):
                 available_networks.append(intface)

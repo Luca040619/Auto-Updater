@@ -144,7 +144,7 @@ class NetUsagePerProcess():
     def get_pid2traffic_one_process(self, p_name): # Return the download speed of the process name entered
         processes = []
         down_process = 0
-        for pid, traffic in self.pid2traffic.items():
+        for pid, traffic in list(self.pid2traffic.items()):
             
             try: p = psutil.Process(pid)
             except psutil.NoSuchProcess: continue
