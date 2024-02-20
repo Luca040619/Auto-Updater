@@ -55,7 +55,7 @@ system("title " + __title__)
 class Updater(NetUsagePerProcess):
     def __init__(self):
         self.prompt = print
-        self.programs = []
+        self.programs: list[str] = []
         self.default_programs = []
         self.file = 'programs.txt'
         self.config_file = 'config.json'
@@ -393,7 +393,8 @@ class Updater(NetUsagePerProcess):
             self.delete_last_lines(1)
             self.prompt(colored("\n DOWNLOAD COMPLETATI                       ", 'green'))
             self.prompt(' Tempo trascorso: ', timedelta(seconds = end_time - start_time), sep = ' ')
-            if auto_off:
+            
+            if auto_off == 'SI':
                 logging.info('PC shutting down')
                 os.system('shutdown -t 0 -f -s')
             
