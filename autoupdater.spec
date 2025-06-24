@@ -5,7 +5,7 @@ a = Analysis(
     ['autoupdater.py'],
     pathex=[],
     binaries=[],
-    datas=[('LogoUpdate.png', '.')],
+    datas=[('assets/LogoUpdate.png', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -31,7 +31,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['LogoUpdate.ico'],
+    icon=['assets/LogoUpdate.ico'],
 )
 coll = COLLECT(
     exe,
