@@ -1,0 +1,7 @@
+python-signal
+pandas
+scapy
+logging
+termcolor
+psutil
+pyqt6

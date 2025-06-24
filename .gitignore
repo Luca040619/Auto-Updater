@@ -1,5 +1,7 @@
 *.log
 *.json
 *.exe
-exe prova 1
+__pycache__
+venv
+Output
 programs.txt

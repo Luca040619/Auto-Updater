@@ -59,7 +59,7 @@ class Updater(NetUsagePerProcess):
         self.default_programs = []
         self.file = 'programs.txt'
         self.config_file = 'config.json'
-        logging.basicConfig(filename="logfile.log", level=logging.INFO, format = '[%(asctime)s] %(levelname)s : %(message)s', datefmt = '%d/%m/%Y - %H:%M:%S')
+        logging.basicConfig(filename="log/logfile.log", level=logging.INFO, format = '[%(asctime)s] %(levelname)s : %(message)s', datefmt = '%d/%m/%Y - %H:%M:%S')
 
         self.config_data = {
             'auto-shutdown' : True,
@@ -99,11 +99,11 @@ class Updater(NetUsagePerProcess):
                 logging.warning('File programs.txt not found, successfully recreated')
             except FileExistsError: None
         
-        with open('logfile.log', 'r') as lf:
+        with open('log/logfile.log', 'r') as lf:
             log = lf.readlines()
         
         if len(log) > 250:
-            with open('logfile.log', 'w') as lf:
+            with open('log/logfile.log', 'w') as lf:
                 lf.write('')
                 lf.close()
                 logging.info('Reached 250 log lines, log file reset')
@@ -211,41 +211,37 @@ class Updater(NetUsagePerProcess):
         while msvcrt.kbhit(): flush = input() #ignore input during time.sleep
     
     def search_default_programs(self):
-        """Search the default apps in the PC
-        """
-        default_programs = [None]*26
-        default_programs[0] = r"C:\Program Files (x86)\Steam\steam.exe"
-        default_programs[1] = r"D:\Program Files (x86)\Steam\steam.exe"
-        default_programs[2] = r"C:\Program Files\Steam\steam.exe"
-        default_programs[3] = r"D:\Program Files\Steam\steam.exe"
-        default_programs[4] = r"C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe"
-        default_programs[5] = r"D:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe"
-        default_programs[6] = r"C:\Program Files\Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe"
-        default_programs[7] = r"D:\Program Files\Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe"
-        default_programs[8] = r"C:\Program Files (x86)\Riot Games\Riot Client\RiotClientServices.exe"
-        default_programs[9] = r"D:\Program Files (x86)\Riot Games\Riot Client\RiotClientServices.exe"
-        default_programs[10] = r"C:\Program Files\Riot Games\Riot Client\RiotClientServices.exe"
-        default_programs[11] = r"D:\Program Files\Riot Games\Riot Client\RiotClientServices.exe"
-        default_programs[12] = r"C:\Riot Games\Riot Client\RiotClientServices.exe"
-        default_programs[13] = r"D:\Riot Games\Riot Client\RiotClientServices.exe"
-        default_programs[14] = r"C:\Program Files (x86)\Ubisoft\Ubisoft Game Launcher\UbisoftConnect.exe"
-        default_programs[15] = r"D:\Program Files (x86)\Ubisoft\Ubisoft Game Launcher\UbisoftConnect.exe"
-        default_programs[16] = r"C:\Program Files\Ubisoft\Ubisoft Game Launcher\UbisoftConnect.exe"
-        default_programs[17] = r"D:\Program Files\Ubisoft\Ubisoft Game Launcher\UbisoftConnect.exe"
-        default_programs[18] = r"C:\Program Files (x86)\Origin\Origin.exe"
-        default_programs[19] = r"D:\Program Files (x86)\Origin\Origin.exe"
-        default_programs[20] = r"C:\Program Files\Origin\Origin.exe"
-        default_programs[21] = r"D:\Program Files\Origin\Origin.exe"
-        default_programs[22] = r"C:\Program Files\Battle.net\Battle.net Launcher.exe"
-        default_programs[23] = r"D:\Program Files\Battle.net\Battle.net Launcher.exe"
-        default_programs[24] = r"C:\Program Files (x86)\Battle.net\Battle.net Launcher.exe"
-        default_programs[25] = r"D:\Program Files (x86)\Battle.net\Battle.net Launcher.exe"
+        """Search for installed game launchers in all mounted drives."""
 
-        for program in default_programs:
-            if self.verify_dir(program):
-                self.default_programs.append(program)
+        # Launcher path patterns relative to disk root
+        launcher_paths = [
+            r"Program Files (x86)\Steam\steam.exe",
+            r"Program Files\Steam\steam.exe",
+            r"Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe",
+            r"Program Files\Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe",
+            r"Program Files (x86)\Riot Games\Riot Client\RiotClientServices.exe",
+            r"Program Files\Riot Games\Riot Client\RiotClientServices.exe",
+            r"Riot Games\Riot Client\RiotClientServices.exe",
+            r"Program Files (x86)\Ubisoft\Ubisoft Game Launcher\UbisoftConnect.exe",
+            r"Program Files\Ubisoft\Ubisoft Game Launcher\UbisoftConnect.exe",
+            r"Program Files (x86)\Origin\Origin.exe",
+            r"Program Files\Origin\Origin.exe",
+            r"Program Files\Battle.net\Battle.net Launcher.exe",
+            r"Program Files (x86)\Battle.net\Battle.net Launcher.exe",
+            r"Program Files\Electronic Arts\EA Desktop\EA Desktop.exe",
+            r"Program Files (x86)\Electronic Arts\EA Desktop\EA Desktop.exe"
+            r"Program Files\Electronic Arts\EA Desktop\EA Desktop\EA Desktop.exe",
+            r"Program Files (x86)\Electronic Arts\EA Desktop\EA Desktop\EA Desktop.exe"
+        ]
 
-        default_programs.clear()
+        # Get all mounted drive letters (e.g., C:\, D:\)
+        drives = [dp.device for dp in psutil.disk_partitions(all=False)]
+
+        for drive in drives:
+            for relative_path in launcher_paths:
+                full_path = os.path.join(drive, relative_path)
+                if os.path.exists(full_path):
+                    self.default_programs.append(full_path)
 
     def setup(self):
         os.system('cls')
@@ -655,7 +651,7 @@ class Updater(NetUsagePerProcess):
     def view_log_file(self):
         os.system('cls')
 
-        log = open('logfile.log', 'r').readlines()
+        log = open('log/logfile.log', 'r').readlines()
         for line in log:
             self.prompt(' ' + line, end = '')
 
