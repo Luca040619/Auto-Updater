@@ -4,6 +4,7 @@ from qfluentwidgets import FluentWindow, setTheme, Theme, FluentIcon
 from gui.home_page import HomePage
 from gui.network_page import NetworkPage
 from gui.first_launch_page import FirstLaunchPage  # importa la pagina di primo avvio
+from utils.functions import config_path_exists
 
 import sys
 
@@ -21,32 +22,33 @@ def main():
     # Attiva tema sistema
     setTheme(Theme.AUTO)
 
-    # ===== Mostra schermata di primo avvio in una finestra modale =====
-    first_launch = FirstLaunchPage()
-    dialog = QDialog()
-    dialog.setWindowTitle("Primo avvio")
-    dialog.setMinimumSize(800, 600)
-    dialog.setMaximumWidth(800)
-    dialog.setMaximumHeight(800)
-    layout = QVBoxLayout(dialog)
-    layout.setContentsMargins(0, 0, 0, 0)
-    layout.addWidget(first_launch)
+    if not config_path_exists():
+        # ===== Mostra schermata di primo avvio in una finestra modale =====
+        first_launch = FirstLaunchPage()
+        dialog = QDialog()
+        dialog.setWindowTitle("Primo avvio")
+        dialog.setMinimumSize(800, 600)
+        dialog.setMaximumWidth(800)
+        dialog.setMaximumHeight(800)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(first_launch)
 
-    # Quando cliccano continua, chiudi dialog e mostra l'app
-    def on_continue():
-        dialog.accept()
+        # Quando cliccano continua, chiudi dialog e mostra l'app
+        def on_continue():
+            dialog.accept()
 
-    first_launch.continue_btn.clicked.connect(on_continue)
+        first_launch.continue_btn.clicked.connect(on_continue)
 
-    if dialog.exec() != QDialog.DialogCode.Accepted:
-        sys.exit(0)  # esce se l'utente chiude senza accettare
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            sys.exit(0)  # esce se l'utente chiude senza accettare
 
     # ===== Avvia l'interfaccia principale =====
     window = FluentWindow()
     window.navigationInterface.setReturnButtonVisible(False)
     window.navigationInterface.setExpandWidth(200)
     window.setWindowTitle("Auto Updater")
-    window.setMinimumSize(800, 600)
+    window.setMinimumSize(800, 650)
     window.setMicaEffectEnabled(True)
 
     window.addSubInterface(HomePage(), icon=FluentIcon.HOME, text="Home")
