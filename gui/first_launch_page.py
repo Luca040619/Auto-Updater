@@ -1,8 +1,9 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QScrollArea, QHBoxLayout, QFrame, QSizePolicy, QStackedLayout, QLabel
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
 from qfluentwidgets import (
     TitleLabel, BodyLabel, CardWidget, PrimaryPushButton, StrongBodyLabel,
-    SwitchButton, InfoBarPosition, InfoBar
+    SwitchButton, InfoBarPosition, InfoBar, FluentIcon, Theme
 )
 from utils.eula import EULA
 from utils.launchers import KNOWN_LAUNCHERS
@@ -146,6 +147,38 @@ class FirstLaunchPage(QWidget):
         for name in KNOWN_LAUNCHERS:
             if name in self.found_launchers:
                 self.add_launcher_item(name, True, self.found_launchers[name])
+
+        warning_card = CardWidget()
+        warning_layout = QHBoxLayout(warning_card)
+        warning_layout.setContentsMargins(24, 16, 24, 16)
+        warning_layout.setSpacing(20)
+        warning_card.setMaximumHeight(60)
+
+        # Icona warning (workaround ufficiale)
+        icon_warning = QIcon(FluentIcon.HELP.path(Theme.DARK))
+        pixmap_warning = icon_warning.pixmap(25, 25)
+
+        warning_icon = QLabel()
+        warning_icon.setPixmap(pixmap_warning)
+        warning_icon.setMaximumWidth(25)
+
+        # Nuovo: contenitore per il testo
+        text_container = QVBoxLayout()
+        text_container.setContentsMargins(0, 0, 0, 0)
+        text_container.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        warning_text = BodyLabel(
+            "Assicurati che gli aggiornamenti automatici dei giochi siano attivi nelle impostazioni dei launcher"
+        )
+        warning_text.setWordWrap(True)
+
+        text_container.addWidget(warning_text)
+
+        # Aggiungi tutto al layout principale
+        warning_layout.addWidget(warning_icon, alignment=Qt.AlignmentFlag.AlignVCenter)
+        warning_layout.addLayout(text_container)
+
+        layout.addWidget(warning_card)
 
         return page
 

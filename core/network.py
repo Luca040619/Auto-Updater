@@ -178,3 +178,34 @@ class NetUsagePerProcess():
         self.previous_disk_activity[p_name] = {'read_bytes': current_activity['read_bytes'], 'write_bytes': current_activity['write_bytes'], 'time': current_time}
 
         return {"read_speed": read_speed, "write_speed": write_speed}
+    
+class NetUsageMonitor:
+    def __init__(self):
+        self.active_interface = self.get_active_interface()
+        self._last_net_in = None
+        self._last_net_out = None
+
+    def get_active_interface(self):
+        counters = psutil.net_io_counters(pernic=True)
+        return max(counters.items(), key=lambda x: x[1].bytes_recv + x[1].bytes_sent)[0]
+
+    def get_net_speed(self):
+        """Restituisce (download_speed, upload_speed) in byte/s"""
+        inf = self.active_interface
+        counters = psutil.net_io_counters(pernic=True, nowrap=True)[inf]
+
+        net_in = counters.bytes_recv
+        net_out = counters.bytes_sent
+
+        if self._last_net_in is None:
+            self._last_net_in = net_in
+            self._last_net_out = net_out
+            return 0, 0
+
+        delta_in = net_in - self._last_net_in
+        delta_out = net_out - self._last_net_out
+
+        self._last_net_in = net_in
+        self._last_net_out = net_out
+
+        return delta_in, delta_out

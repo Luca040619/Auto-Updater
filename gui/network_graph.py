@@ -2,16 +2,17 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout
 from PyQt6.QtCore import QTimer, Qt, QMargins
 from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis, QLegend
-import random
+from core.network import NetUsageMonitor
 
 
 class NetworkGraph(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, net_monitor: NetUsageMonitor, parent=None):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.net_monitor = net_monitor
 
-        self.download_data = [0.1] * 60
-        self.upload_data = [0.05] * 60
+        self.download_data = [0] * 60
+        self.upload_data = [0] * 60
 
         self.chart = QChart()
         self.chart.setBackgroundVisible(False)
@@ -43,8 +44,11 @@ class NetworkGraph(QWidget):
         self.axis_x.setGridLineVisible(False)
 
         self.axis_y = QValueAxis()
-        self.axis_y.setRange(0, 2.0)
-        self.axis_y.setLabelFormat("%.1f")
+        self.axis_y.setLabelFormat("%.1f MB/s") 
+        self.axis_y.setTickCount(5)
+        font = self.axis_y.labelsFont()
+        font.setPointSize(8)
+        self.axis_y.setLabelsFont(font)
         self.axis_y.setLabelsColor(QColor("#aaa"))
         self.axis_y.setGridLineColor(QColor(255, 255, 255, 25))  # griglia molto leggera
         self.axis_y.setLineVisible(False)
@@ -75,14 +79,9 @@ class NetworkGraph(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.chart_view)
 
-        # Timer per aggiornamento
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update_data)
-        self.timer.start(1000)
-
-    def update_data(self):
-        new_down = round(random.uniform(0.3, 1.8), 2)
-        new_up = round(new_down * random.uniform(0.1, 0.4), 2)
+    def append_data_point(self, delta_in, delta_out):
+        new_down = round(delta_in / 1024 / 1024, 2)
+        new_up = round(delta_out / 1024 / 1024, 2)
 
         self.download_data.append(new_down)
         self.upload_data.append(new_up)
@@ -96,5 +95,42 @@ class NetworkGraph(QWidget):
             self.download_series.append(i, self.download_data[i])
             self.upload_series.append(i, self.upload_data[i])
 
-        max_y = max(max(self.download_data), max(self.upload_data)) * 1.2
-        self.axis_y.setRange(0, max(1.0, round(max_y, 1)))
+        current_max = max(max(self.download_data), max(self.upload_data))
+
+        # Scale comode (puoi raffinarle)
+        def nice_scale(value):
+            if value <= 0.5:
+                return 0.5
+            elif value <= 1:
+                return 1
+            elif value <= 2:
+                return 2
+            elif value <= 5:
+                return 5
+            elif value <= 10:
+                return 10
+            elif value <= 15:
+                return 15
+            elif value <= 20:
+                return 20
+            elif value <= 50:
+                return 50
+            elif value <= 100:
+                return 100
+            elif value <= 200:
+                return 200
+            elif value <= 500:
+                return 500
+            else:
+                return ((value // 100) + 1) * 100
+
+        # Fai decadere lentamente la scala
+        if not hasattr(self, "_last_max_y"):
+            self._last_max_y = current_max
+        else:
+            decay_factor = 0.05  # più basso = più lento
+            self._last_max_y = max(current_max, self._last_max_y * (1 - decay_factor))
+
+        # Applica la scala "bella"
+        smoothed_max_y = nice_scale(self._last_max_y)
+        self.axis_y.setRange(0, smoothed_max_y)

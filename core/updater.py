@@ -9,16 +9,25 @@ from core.network import NetUsagePerProcess
 from scapy.all import AsyncSniffer
 
 class Updater:
-    def __init__(self, launcher_configs: dict, inactivity_timeout: int = 30):
+    def __init__(self, launcher_configs: dict, inactivity_timeout: int = 10):
         self.launcher_configs = launcher_configs
         print(f"Configurazione dei launcher: {self.launcher_configs}")
         self.inactivity_timeout = inactivity_timeout
+        self.cancelled = False
         self.current_status = {}
+        self.launcher_status = {}
         self.current_launcher = None
         self.is_running = False
+        self.sniffer = None
+        self.on_complete = None
         self._lock = threading.Lock()
 
         self.net_monitor = NetUsagePerProcess()
+
+    def mark_cancelled_launchers(self):
+        for name, data in self.launcher_status.items():
+            if data.get("status") == "in_progress":
+                data["status"] = "cancelled"
 
     def _log(self, message):
         print("[Updater]", message)
@@ -62,6 +71,7 @@ class Updater:
             if not data.get("enabled", False):
                 continue
 
+            origin_name = name   
             path = data.get("path")
             name = os.path.basename(path)
 
@@ -78,33 +88,41 @@ class Updater:
                 if not self.is_running:
                     break
 
-            self._run_single_launcher(name, path)
+            self._run_single_launcher(name, origin_name, path)
 
         self.stop_updating()
+
+        if self.on_complete and not self.cancelled:
+            self.on_complete()
+
         self._log("Tutti i launcher sono stati processati.")
 
-    def _run_single_launcher(self, name, path):
+    def _run_single_launcher(self, name, origin_name, path):
         self._log(f"Avvio di {name}...")
         proc = subprocess.Popen([path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         last_active_time = time.time()
+        downloaded_total = 0
 
         while True:
             with self._lock:
                 if not self.is_running:
+                    self.launcher_status[origin_name]["status"] = "cancelled"
                     self._log(f"{name} terminato ma aggiornamento interrotto.")
                     return
 
             try:
                 # Ottieni velocità rete e disco usando NetUsagePerProcess
-                print(f"Monitoraggio di {name}...")
+                print(f"Monitoraggio di {origin_name}...")
                 speed_recv = self.net_monitor.get_pid2traffic_one_process(name)
                 disk_speeds = self.net_monitor.get_current_disk_activity(name)
                 speed_read = max(0, disk_speeds.get("read_speed", 0))
                 speed_write = max(0, disk_speeds.get("write_speed", 0))
 
-                self._log(f"[{name}] ↓ {get_size(speed_recv)}/s")
-                self._log(f"[{name}] Disk R {get_size(speed_read)}/s W {get_size(speed_write)}/s")
+                downloaded_total += speed_recv
+
+                self._log(f"[{origin_name}] ↓ {get_size(speed_recv)}/s")
+                self._log(f"[{origin_name}] Disk R {get_size(speed_read)}/s W {get_size(speed_write)}/s")
 
                 # Attivo solo se scarica o scrive su disco
                 active = (
@@ -117,12 +135,17 @@ class Updater:
                     last_active_time = now
 
                 self.current_status = {
-                    "launcher": name,
+                    "launcher": origin_name,
                     "pid": proc.pid,
                     "speed_recv": speed_recv,
                     "speed_read": speed_read,
                     "speed_write": speed_write,
                     "inactive_for": int(now - last_active_time),
+                }
+
+                self.launcher_status[origin_name] = {
+                    "download": downloaded_total,
+                    "status": "in_progress"
                 }
 
                 if now - last_active_time > self.inactivity_timeout:
@@ -136,6 +159,7 @@ class Updater:
 
             time.sleep(1)
 
+        self.launcher_status[origin_name]["status"] = "done"
         proc.wait()
 
     def _terminate_process(self, process: subprocess.Popen):
