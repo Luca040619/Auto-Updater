@@ -1,10 +1,12 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QHeaderView, QTableWidget, QTableWidgetItem, QLabel
 from qfluentwidgets import TitleLabel, CardWidget, PrimaryPushButton, FluentIcon, Theme
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtGui import QIcon, QPixmap, QCloseEvent
 from gui.network_graph import NetworkGraph
-from core.network import NetUsageMonitor
-from utils.functions import get_size
+from core.network import NetUsageMonitor, NetUsagePerProcess
+from utils.functions import get_size, get_icon_from_exe
+from scapy.all import AsyncSniffer
+from threading import Thread
 import psutil
 
 class NetworkPage(QWidget):
@@ -12,6 +14,7 @@ class NetworkPage(QWidget):
         super().__init__()
         self.setObjectName("network")
         self.net_monitor: NetUsageMonitor = NetUsageMonitor()
+        self.process_monitor: NetUsagePerProcess = NetUsagePerProcess()
 
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(32, 24, 32, 24)
@@ -57,8 +60,8 @@ class NetworkPage(QWidget):
 
         # Tabella dei processi
         self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["Processo", "PID", "Download", "Upload"])
+        self.table.setColumnCount(6)
+        self.table.setHorizontalHeaderLabels(["Processo", "PID", "Download Speed", "Upload Speed", "Totale Download", "Totale Upload"])
         self.table.verticalHeader().setVisible(False)
         self.table.setShowGrid(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -76,12 +79,20 @@ class NetworkPage(QWidget):
         btn_layout.addWidget(self.end_button)
         card_layout.addLayout(btn_layout)
 
+        self.conn_thread = Thread(target=self.process_monitor.get_connections, daemon=True)
+        self.conn_thread.start()
+
+        # Sniffer async
+        self.sniffer = AsyncSniffer(prn=self.process_monitor.process_packet, store=False)
+        self.sniffer.start()
+
         self.net_timer = QTimer(self)
         self.net_timer.timeout.connect(self.update_global_net_stats)
         self.net_timer.start(1000)
 
-        # Dati finti per ora
-        self.load_mock_data()
+        self.proc_timer = QTimer(self)
+        self.proc_timer.timeout.connect(self.update_process_table)
+        self.proc_timer.start(1000)
 
     def _create_stat_widget(self, label_text, icon_type, value_text) -> QWidget:
         widget = QWidget()
@@ -128,18 +139,35 @@ class NetworkPage(QWidget):
         self.dl_speed_label.value_label.setText(f"{get_size(bytes_in)}/s")
         self.ul_speed_label.value_label.setText(f"{get_size(bytes_out)}/s")
 
-    def load_mock_data(self):
-        data = [
-            ("chrome.exe", "4284", "1,53 MB/s", "25,6 KB/s", "assets/icons/chrome.png"),
-            ("Steam", "7016", "476 KB/s", "6,9 KB/s", "assets/icons/steam.png"),
-            ("Epic Games.exe", "1216", "218 KB/s", "0,8 KB/s", "assets/icons/epic_games.png"),
-            ("svchost.exe", "940", "142 KB/s", "3,4 KB/s", "assets/icons/exec.png"),
-        ]
+    def update_process_table(self):
+        self.process_monitor.print_pid2traffic()
+        df = self.process_monitor.global_df
+        if df is None or df.empty:
+            return
 
-        self.table.setRowCount(len(data))
-        for row, (proc, pid, down, up, icon_path) in enumerate(data):
-            icon_item = QTableWidgetItem(QIcon(QPixmap(icon_path)), proc)
-            self.table.setItem(row, 0, icon_item)
-            self.table.setItem(row, 1, QTableWidgetItem(pid))
-            self.table.setItem(row, 2, QTableWidgetItem(down))
-            self.table.setItem(row, 3, QTableWidgetItem(up))
+        self.table.setRowCount(len(df))
+        for row, (pid, proc) in enumerate(df.iterrows()):
+            raw_name = proc.get("name", "Unknown")
+            if len(raw_name) > 28:
+                name = raw_name[:25] + ".exe"
+            else:
+                name = raw_name
+            exe_path = proc.get("exe", "")  # ← Assicurati che questo campo esista
+            icon = get_icon_from_exe(exe_path) if exe_path else QIcon()
+
+            total_download = get_size(proc.get("Download", 0))
+            total_upload = get_size(proc.get("Upload", 0))
+            download_speed = get_size(proc.get("Download Speed", 0)) + "/s"
+            upload_speed = get_size(proc.get("Upload Speed", 0)) + "/s"
+
+            self.table.setItem(row, 0, QTableWidgetItem(icon, name))
+            self.table.setItem(row, 1, QTableWidgetItem(str(pid)))
+            self.table.setItem(row, 2, QTableWidgetItem(download_speed))
+            self.table.setItem(row, 3, QTableWidgetItem(upload_speed))
+            self.table.setItem(row, 4, QTableWidgetItem(total_download))
+            self.table.setItem(row, 5, QTableWidgetItem(total_upload))
+
+    def closeEvent(self, event: QCloseEvent):
+        self.sniffer.stop()
+        self.process_monitor.is_monitoring = False
+        event.accept()

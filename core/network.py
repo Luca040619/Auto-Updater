@@ -15,6 +15,7 @@ class NetUsagePerProcess():
         self.connection2pid = {}
         # A dictionary to map each process ID (PID) to total Upload (0) and Download (1) traffic
         self.pid2traffic = defaultdict(lambda: [0, 0])
+        self.pid_info_cache = {}
         # the global Pandas DataFrame that's used to track previous traffic stats
         self.global_df = None
         # global boolean for status of the program
@@ -57,22 +58,32 @@ class NetUsagePerProcess():
     def print_pid2traffic(self):
         # initialize the list of processes
         processes = []
-        for pid, traffic in self.pid2traffic.items():
+        for pid, traffic in list(self.pid2traffic.items()):
             # `pid` is an integer that represents the process ID
             # `traffic` is a list of two values: total Upload and Download size in bytes
-            try: p = psutil.Process(pid)
-            except psutil.NoSuchProcess: continue
-                
-            name = p.name()
+            
+            if pid not in self.pid_info_cache:
+                try:
+                    p = psutil.Process(pid)
+                    self.pid_info_cache[pid] = {
+                        "name": p.name(),
+                        "exe": p.exe(),
+                        "create_time": p.create_time()
+                    }
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    continue
+
+            name = self.pid_info_cache[pid]["name"]
+            exe = self.pid_info_cache[pid]["exe"]
+                            
             # get the time the process was spawned
             try:
-                create_time = datetime.fromtimestamp(p.create_time())
+                create_time = datetime.fromtimestamp(self.pid_info_cache[pid]["create_time"])
             except OSError:
-                # system processes, using boot time instead
                 create_time = datetime.fromtimestamp(psutil.boot_time())
 
             process = {
-                "pid": pid, "name": name, "create_time": create_time, "Upload": traffic[0],
+                "pid": pid, "name": name, "exe": exe, "create_time": create_time, "Upload": traffic[0],
                 "Download": traffic[1]*1.1,
             }
             try:
@@ -99,16 +110,13 @@ class NetUsagePerProcess():
         printing_df = df.copy() # make another copy of the dataframe just for fancy printing
         try:
             # apply the function get_size to scale the stats like '532.6KB/s', etc.
-            printing_df["Download"] = printing_df["Download"].apply(self.get_size)
-            printing_df["Upload"] = printing_df["Upload"].apply(self.get_size)
-            printing_df["Download Speed"] = printing_df["Download Speed"].apply(self.get_size).apply(lambda s: f"{s}/s")
-            printing_df["Upload Speed"] = printing_df["Upload Speed"].apply(self.get_size).apply(lambda s: f"{s}/s")
+            printing_df["Download"] = printing_df["Download"].apply(get_size)
+            printing_df["Upload"] = printing_df["Upload"].apply(get_size)
+            printing_df["Download Speed"] = printing_df["Download Speed"].apply(get_size).apply(lambda s: f"{s}/s")
+            printing_df["Upload Speed"] = printing_df["Upload Speed"].apply(get_size).apply(lambda s: f"{s}/s")
         except KeyError as e:
             pass # when dataframe is empty again
-        
-        os.system("cls") if "nt" in os.name else os.system("clear") # clear the screen based on your OS
 
-        print(printing_df.to_string())
         # update the global df to our dataframe
         self.global_df = df
 

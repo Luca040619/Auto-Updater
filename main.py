@@ -48,7 +48,7 @@ def main():
     window.navigationInterface.setReturnButtonVisible(False)
     window.navigationInterface.setExpandWidth(200)
     window.setWindowTitle("Auto Updater")
-    window.setMinimumSize(800, 650)
+    window.setMinimumSize(800, 670)
     window.setMicaEffectEnabled(True)
 
     window.addSubInterface(HomePage(), icon=FluentIcon.HOME, text="Home")

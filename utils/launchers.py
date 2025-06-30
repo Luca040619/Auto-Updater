@@ -30,8 +30,13 @@ KNOWN_LAUNCHERS: dict[list[str]] = {
         r"Program Files\Electronic Arts\EA Desktop\EA Desktop\EADesktop.exe",
         r"Program Files (x86)\Electronic Arts\EA Desktop\EA Desktop\EADesktop.exe"
     ],
+    "Rockstar Games Launcher": [
+        r"Program Files\Rockstar Games\Launcher\LauncherPatcher.exe",
+        r"Program Files (x86)\Rockstar Games\Launcher\LauncherPatcher.exe"
+    ],
     "GOG Galaxy": [
         r"Program Files (x86)\GOG Galaxy\GalaxyClient.exe",
         r"Program Files\GOG Galaxy\GalaxyClient.exe"
     ],
 }
+#ROCKSTAR GAMES
