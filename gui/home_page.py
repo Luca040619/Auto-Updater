@@ -6,8 +6,9 @@ from qfluentwidgets import (
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout, QFrame, QSpacerItem, QSizePolicy, QScrollArea
 from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtCore import Qt, QTimer
-from utils.functions import get_icon_from_exe, load_config, save_config, get_size
 from core.updater import Updater 
+from core.config import load_config, save_config
+from utils.functions import get_icon_from_exe, get_size
 import os
 
 class HomePage(QWidget):
@@ -100,13 +101,13 @@ class HomePage(QWidget):
         read_layout = QHBoxLayout()
         read_layout.setSpacing(4)
 
-        icon_read = QIcon(FluentIcon.BOOK_SHELF.path(Theme.AUTO))
+        icon_read = QIcon(FluentIcon.SAVE.path(Theme.AUTO))
         pixmap_read = icon_read.pixmap(9, 9)
         read_icon = QLabel()
         read_icon.setPixmap(pixmap_read)
 
         self.disk_read_speed_label = CaptionLabel("0 KB/s")
-        read_layout.addWidget(read_icon)
+        read_layout.addWidget(read_icon, alignment=Qt.AlignmentFlag.AlignCenter)
         read_layout.addWidget(self.disk_read_speed_label)
         read_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
         disk_info_layout.addLayout(read_layout)
@@ -115,13 +116,13 @@ class HomePage(QWidget):
         write_layout = QHBoxLayout()
         write_layout.setSpacing(4)
 
-        icon_write = QIcon(FluentIcon.SAVE.path(Theme.AUTO))
+        icon_write = QIcon(FluentIcon.SAVE_AS.path(Theme.AUTO))
         pixmap_write = icon_write.pixmap(9, 9)
         write_icon = QLabel()
         write_icon.setPixmap(pixmap_write)
 
         self.disk_write_speed_label = CaptionLabel("0 KB/s")
-        write_layout.addWidget(write_icon)
+        write_layout.addWidget(write_icon, alignment=Qt.AlignmentFlag.AlignCenter)
         write_layout.addWidget(self.disk_write_speed_label)
         write_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
         disk_info_layout.addLayout(write_layout)

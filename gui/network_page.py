@@ -1,10 +1,11 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QHeaderView, QTableWidget, QTableWidgetItem, QLabel
-from qfluentwidgets import TitleLabel, CardWidget, PrimaryPushButton, FluentIcon, Theme
+from qfluentwidgets import TitleLabel, CardWidget, PrimaryPushButton, FluentIcon, Theme, MessageBox, ToolButton
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon, QPixmap, QCloseEvent
 from gui.network_graph import NetworkGraph
+from gui.shutdown_dialog import ShutdownSettingsDialog
 from core.network import NetUsageMonitor, NetUsagePerProcess
-from utils.functions import get_size, get_icon_from_exe
+from utils.functions import get_size, get_icon_from_exe, restart_as_admin
 from scapy.all import AsyncSniffer
 from threading import Thread
 import psutil
@@ -64,20 +65,34 @@ class NetworkPage(QWidget):
         self.table.setHorizontalHeaderLabels(["Processo", "PID", "Download Speed", "Upload Speed", "Totale Download", "Totale Upload"])
         self.table.verticalHeader().setVisible(False)
         self.table.setShowGrid(False)
+        self.table.setCursor(Qt.CursorShape.PointingHandCursor)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
-        self.table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.table.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table.setStyleSheet("QTableWidget { background-color: transparent; }")
         card_layout.addWidget(self.table)
 
         # Pulsante Termina (in basso a destra)
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
+        bottom_layout = QHBoxLayout()
+
+        # 🔌 Pulsante con icona per aprire il dialogo
+        self.shutdown_settings_btn = ToolButton(FluentIcon.POWER_BUTTON)
+        self.shutdown_settings_btn.setToolTip("Auto spegnimento al termine dell'attività")
+        self.shutdown_settings_btn.clicked.connect(self.show_shutdown_settings_dialog)
+
+        bottom_layout.addWidget(self.shutdown_settings_btn)  # A sinistra
+        bottom_layout.addStretch()
+
+        # 🔘 Pulsante Termina
         self.end_button = PrimaryPushButton("Termina")
-        btn_layout.addWidget(self.end_button)
-        card_layout.addLayout(btn_layout)
+        self.end_button.clicked.connect(self.terminate_selected_process)
+        bottom_layout.addWidget(self.end_button)
+
+        # Aggiunge tutto alla card
+        card_layout.addLayout(bottom_layout)
 
         self.conn_thread = Thread(target=self.process_monitor.get_connections, daemon=True)
         self.conn_thread.start()
@@ -148,8 +163,8 @@ class NetworkPage(QWidget):
         self.table.setRowCount(len(df))
         for row, (pid, proc) in enumerate(df.iterrows()):
             raw_name = proc.get("name", "Unknown")
-            if len(raw_name) > 28:
-                name = raw_name[:25] + ".exe"
+            if len(raw_name) > 18:
+                name = raw_name[:15] + ".exe"
             else:
                 name = raw_name
             exe_path = proc.get("exe", "")  # ← Assicurati che questo campo esista
@@ -166,6 +181,54 @@ class NetworkPage(QWidget):
             self.table.setItem(row, 3, QTableWidgetItem(upload_speed))
             self.table.setItem(row, 4, QTableWidgetItem(total_download))
             self.table.setItem(row, 5, QTableWidgetItem(total_upload))
+
+    def show_shutdown_settings_dialog(self):
+        dialog = ShutdownSettingsDialog(self)
+        dialog.exec()
+        config = dialog.get_config()
+
+        self.shutdown_config = config
+
+    def terminate_selected_process(self):
+        selected_ranges = self.table.selectedRanges()
+        if not selected_ranges:
+            return  # Nessuna selezione
+
+        selected_row = selected_ranges[0].topRow()
+        pid_item = self.table.item(selected_row, 1)
+        if not pid_item:
+            return
+
+        try:
+            pid = int(pid_item.text())
+            proc = psutil.Process(pid)
+            proc.terminate()
+            proc.wait(timeout=3)
+
+            # Rimuovi dalle strutture interne
+            self.process_monitor.pid2traffic.pop(pid, None)
+            self.process_monitor.pid_info_cache.pop(pid, None)
+            if self.process_monitor.global_df is not None:
+                self.process_monitor.global_df.drop(index=pid, errors="ignore", inplace=True)
+
+            self.update_process_table()
+
+        except psutil.AccessDenied:
+            dialog = MessageBox("Permesso negato", 
+                "Per terminare questo processo è necessario riavviare l'app come amministratore.\n\nVuoi farlo ora?",
+                self)
+            dialog.yesButton.setText("Sì, riavvia")
+            dialog.cancelButton.setText("No, annulla")
+
+            def handle_admin_request():
+                dialog.close()
+                restart_as_admin()
+
+            dialog.yesButton.clicked.connect(handle_admin_request)
+            dialog.exec()
+
+        except (psutil.NoSuchProcess, ValueError) as e:
+            print(f"Errore nel terminare processo: {e}")
 
     def closeEvent(self, event: QCloseEvent):
         self.sniffer.stop()

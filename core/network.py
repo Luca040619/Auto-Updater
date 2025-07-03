@@ -56,69 +56,81 @@ class NetUsagePerProcess():
             time.sleep(1)
     
     def print_pid2traffic(self):
-        # initialize the list of processes
         processes = []
+        pids_to_remove = []
+
         for pid, traffic in list(self.pid2traffic.items()):
-            # `pid` is an integer that represents the process ID
-            # `traffic` is a list of two values: total Upload and Download size in bytes
-            
+            try:
+                p = psutil.Process(pid)
+                if not p.is_running() or p.status() == psutil.STATUS_ZOMBIE:
+                    raise psutil.NoSuchProcess(pid)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pids_to_remove.append(pid)
+                continue
+
             if pid not in self.pid_info_cache:
                 try:
-                    p = psutil.Process(pid)
                     self.pid_info_cache[pid] = {
                         "name": p.name(),
                         "exe": p.exe(),
                         "create_time": p.create_time()
                     }
                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    pids_to_remove.append(pid)
                     continue
 
-            name = self.pid_info_cache[pid]["name"]
-            exe = self.pid_info_cache[pid]["exe"]
-                            
-            # get the time the process was spawned
+            info = self.pid_info_cache[pid]
             try:
-                create_time = datetime.fromtimestamp(self.pid_info_cache[pid]["create_time"])
+                create_time = datetime.fromtimestamp(info["create_time"])
             except OSError:
                 create_time = datetime.fromtimestamp(psutil.boot_time())
 
             process = {
-                "pid": pid, "name": name, "exe": exe, "create_time": create_time, "Upload": traffic[0],
-                "Download": traffic[1]*1.1,
+                "pid": pid,
+                "name": info["name"],
+                "exe": info["exe"],
+                "create_time": create_time,
+                "Upload": traffic[0],
+                "Download": traffic[1] * 1.1
             }
+
             try:
-                # calculate the upload and download speeds by simply subtracting the old stats from the new stats
                 process["Upload Speed"] = traffic[0] - self.global_df.at[pid, "Upload"]
-                process["Download Speed"] = traffic[1] *1.1 - self.global_df.at[pid, "Download"]
+                process["Download Speed"] = traffic[1] * 1.1 - self.global_df.at[pid, "Download"]
             except (KeyError, AttributeError):
-                # If it's the first time running this function, then the speed is the current traffic
-                # You can think of it as if old traffic is 0
                 process["Upload Speed"] = traffic[0]
-                process["Download Speed"] = traffic[1]*1.1
+                process["Download Speed"] = traffic[1] * 1.1
 
             processes.append(process)
-        # construct our Pandas DataFrame
+
+        # 🔥 Rimozione dei processi morti
+        for pid in pids_to_remove:
+            self.pid2traffic.pop(pid, None)
+            self.pid_info_cache.pop(pid, None)
+            if self.global_df is not None:
+                self.global_df.drop(index=pid, errors="ignore", inplace=True)
+
+        # ✅ Nuovo DataFrame
         df = pd.DataFrame(processes)
         try:
-            # set the PID as the index of the dataframe
             df = df.set_index("pid")
-            # sort by column, feel free to edit this column
             df.sort_values("Download", inplace=True, ascending=False)
-        except KeyError as e:
-            pass # when dataframe is empty
-        
-        printing_df = df.copy() # make another copy of the dataframe just for fancy printing
-        try:
-            # apply the function get_size to scale the stats like '532.6KB/s', etc.
-            printing_df["Download"] = printing_df["Download"].apply(get_size)
-            printing_df["Upload"] = printing_df["Upload"].apply(get_size)
-            printing_df["Download Speed"] = printing_df["Download Speed"].apply(get_size).apply(lambda s: f"{s}/s")
-            printing_df["Upload Speed"] = printing_df["Upload Speed"].apply(get_size).apply(lambda s: f"{s}/s")
-        except KeyError as e:
-            pass # when dataframe is empty again
+        except KeyError:
+            pass
 
-        # update the global df to our dataframe
-        self.global_df = df
+        self.global_df = df.copy()
+
+        # Opzionale: stampa leggibile
+        try:
+            df_print = df.copy()
+            df_print["Download"] = df_print["Download"].apply(get_size)
+            df_print["Upload"] = df_print["Upload"].apply(get_size)
+            df_print["Download Speed"] = df_print["Download Speed"].apply(get_size).apply(lambda s: f"{s}/s")
+            df_print["Upload Speed"] = df_print["Upload Speed"].apply(get_size).apply(lambda s: f"{s}/s")
+            # print(df_print)  # opzionale
+        except KeyError:
+            pass
+
 
     def get_pid2traffic_one_process(self, p_name): # Return the download speed of the process name entered
         processes = []

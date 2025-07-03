@@ -3,5 +3,7 @@
 *.exe
 __pycache__
 venv
+build
+npcap
 Output
 programs.txt

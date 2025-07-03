@@ -4,7 +4,8 @@ from qfluentwidgets import FluentWindow, setTheme, Theme, FluentIcon
 from gui.home_page import HomePage
 from gui.network_page import NetworkPage
 from gui.first_launch_page import FirstLaunchPage  # importa la pagina di primo avvio
-from utils.functions import config_path_exists
+from gui.settings_page import SettingsPage
+from core.config import config_path_exists
 
 import sys
 
@@ -53,7 +54,7 @@ def main():
 
     window.addSubInterface(HomePage(), icon=FluentIcon.HOME, text="Home")
     window.addSubInterface(NetworkPage(), icon=FluentIcon.WIFI, text="Monitoraggio")
-    #window.addSubInterface(SettingsPage(), icon="Settings", text="Impostazioni")
+    window.addSubInterface(SettingsPage(), icon=FluentIcon.SETTING, text="Impostazioni")
 
     window.resize(window.minimumSize())
     window.show()

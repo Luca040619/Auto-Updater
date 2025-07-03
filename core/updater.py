@@ -9,7 +9,7 @@ from core.network import NetUsagePerProcess
 from scapy.all import AsyncSniffer
 
 class Updater:
-    def __init__(self, launcher_configs: dict, inactivity_timeout: int = 10):
+    def __init__(self, launcher_configs: dict, inactivity_timeout: int = 60):
         self.launcher_configs = launcher_configs
         print(f"Configurazione dei launcher: {self.launcher_configs}")
         self.inactivity_timeout = inactivity_timeout

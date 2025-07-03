@@ -5,9 +5,10 @@ from qfluentwidgets import (
     TitleLabel, BodyLabel, CardWidget, PrimaryPushButton, StrongBodyLabel,
     SwitchButton, InfoBarPosition, InfoBar, FluentIcon, Theme
 )
+from core.config import get_config_path, load_config, save_config
 from utils.eula import EULA
 from utils.launchers import KNOWN_LAUNCHERS
-from utils.functions import search_default_programs, get_icon_from_exe, get_config_path
+from utils.functions import search_default_programs, get_icon_from_exe
 import json
 
 class FirstLaunchPage(QWidget):
@@ -235,7 +236,7 @@ class FirstLaunchPage(QWidget):
         self.save_launcher_config()
 
     def save_launcher_config(self):
-        config = {"launchers": {}}
+        config = load_config()
 
         for i in range(self.launcher_list_layout.count()):
             item = self.launcher_list_layout.itemAt(i).widget()
@@ -251,6 +252,4 @@ class FirstLaunchPage(QWidget):
                 "enabled": enabled
             }
 
-        config_path = get_config_path()
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=4)
+        save_config(config)
